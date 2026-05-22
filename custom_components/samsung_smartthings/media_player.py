@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-
+import logging
 from homeassistant.components.media_player import (
     BrowseMedia,
     MediaClass,
@@ -31,7 +31,7 @@ from .frame_local_api import AsyncFrameLocal
 from .soundbar_local_api import AsyncSoundbarLocal
 from .app_catalog import YOUTUBE_APP, app_options, is_http_url, is_youtube_url, resolve_app
 
-
+_LOGGER = logging.getLogger(__name__)
 class _FeatureMask(int):
     """Int mask that also supports `feature in mask` membership checks."""
 
@@ -291,7 +291,7 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
             
             if isinstance(raw_sources, list):
                 return [str(s) for s in raw_sources]
-            return list(self._source_map.keys())
+            return list(raw_sources.keys())
             
         return []
 
@@ -305,15 +305,29 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
             return
 
         if self.device.has_capability("samsungvd.audioInputSource"):
-            model_name = self.device_info.get("model") if self.device_info else "default"
+            
+            model_name = self.device.get_attr("ocf", "mnmo")
+            #Hardcoded source map atm, but moving over self learning source map from old integration later
             source_map = {
                 "HDMI1": {"sbMode": 3},
                 "HDMI2": {"sbMode": 20},
                 "digital": {"sbMode": 10},
                 "wifi": {"sbMode": 25},
             }
+            if model_name == "HW-S60T":
+                source_map = {
+                   "bluetooth": {"sbMode": 4},
+                    "digital": {"sbMode": 1},
+                    "wifi": {"sbMode": 26},
+                }
 
             if source not in source_map:
+                _LOGGER.warning(
+                    "Source not found: %s in source map: %s for model: ",
+                    source,
+                    source_map,
+                    exc.model_name,
+                )
                 return
 
             await self.device.send_command(
