@@ -291,8 +291,7 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
             
             if isinstance(raw_sources, list):
                 return [str(s) for s in raw_sources]
-            return list(raw_sources.keys())
-            
+ 
         return []
 
     async def async_select_source(self, source: str) -> None:
