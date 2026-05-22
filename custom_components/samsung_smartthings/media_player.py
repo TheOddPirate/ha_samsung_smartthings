@@ -107,6 +107,8 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
             f |= F.NEXT_TRACK | F.PREVIOUS_TRACK
         if self.device.has_capability("custom.launchapp"):
             f |= F.PLAY_MEDIA | F.SELECT_SOURCE
+        if not self.device.has_capability("custom.launchapp") and self.device.has_capability("samsungvd.audioInputSource"):
+            f |= F.SELECT_SOURCE 
         # Source selection is handled via select entity; keep here minimal.
         return _FeatureMask(f)
 
@@ -271,20 +273,62 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
     def media_artist(self) -> str | None:
         _title, artist = self.device.get_media_metadata()
         return artist
+    @property
+    def source(self) -> str | None:
+        if self.device.has_capability("samsungvd.audioInputSource"):
+            v = self.device.get_attr("samsungvd.audioInputSource", "inputSource")
+            return str(v) if v is not None else None
 
+        return None
+    
     @property
     def source_list(self) -> list[str]:
-        if not self.device.has_capability("custom.launchapp"):
-            return []
-        return app_options()
+        if self.device.has_capability("custom.launchapp"):
+            return app_options()
+            
+        if self.device.has_capability("samsungvd.audioInputSource"):
+            raw_sources = self.device.get_attr("samsungvd.audioInputSource", "supportedInputSources")
+            
+            if isinstance(raw_sources, list):
+                return [str(s) for s in raw_sources]
+            return list(self._source_map.keys())
+            
+        return []
 
     async def async_select_source(self, source: str) -> None:
-        app = resolve_app(source)
-        if app is None:
-            raise HomeAssistantError(f"Unknown app source: {source}")
-        await self.device.send_command("custom.launchapp", "launchApp", arguments=[app.app_id, app.name])
-        await self.coordinator.async_request_refresh()
+        if self.device.has_capability("custom.launchapp"):
+            app = resolve_app(source)
+            if app is None:
+                raise HomeAssistantError(f"Unknown app source: {source}")
+            await self.device.send_command("custom.launchapp", "launchApp", arguments=[app.app_id, app.name])
+            await self.coordinator.async_request_refresh()
+            return
 
+        if self.device.has_capability("samsungvd.audioInputSource"):
+            model_name = self.device_info.get("model") if self.device_info else "default"
+            source_map = {
+                "HDMI1": {"sbMode": 3},
+                "HDMI2": {"sbMode": 20},
+                "digital": {"sbMode": 10},
+                "wifi": {"sbMode": 25},
+            }
+
+            if source not in source_map:
+                return
+
+            await self.device.send_command(
+                capability="execute",
+                command="execute",
+                arguments=[
+                    "/sec/networkaudio/soundFrom",
+                    {
+                        "x.com.samsung.networkaudio.soundFrom": {
+                            "sbMode": source_map[source]["sbMode"]
+                        }
+                    }
+                ]
+            )
+            await self.coordinator.async_request_refresh()
 
 class SoundbarLocalMediaPlayer(MediaPlayerEntity):
     """2024-line Samsung soundbar over LAN (HTTPS JSON-RPC on port 1516)."""
