@@ -352,6 +352,17 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
 
     def _sync_get_source_map(self, safe_model_name: str) -> dict:
         """Triggers inside the executor thread to safely read from disk."""
+        if not os.path.exists(self._source_maps_dir):
+            try:
+                os.makedirs(self._source_maps_dir)
+            except Exception as e:
+                _LOGGER.error("Could not create source maps directory. Error: %s\nFallback to default", e)
+                return {
+                    "HDMI1": {"sbMode": 3},
+                    "HDMI2": {"sbMode": 20},
+                    "digital": {"sbMode": 10},
+                    "wifi": {"sbMode": 25}
+                }
         model_file_path = os.path.join(self._source_maps_dir, f"{safe_model_name}_source_map.json")
         default_file_path = os.path.join(self._source_maps_dir, "default_source_map.json")
 
@@ -435,18 +446,7 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
                 return
 
         model_file_path = os.path.join(self._source_maps_dir, f"{safe_model_name}_source_map.json")
-        model_map = {}
-        
-        if await self.hass.async_add_executor_job(os.path.exists, model_file_path):
-            def read_existing():
-                with open(model_file_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            try:
-                model_map = await self.hass.async_add_executor_job(read_existing)
-            except Exception as e:
-                _LOGGER.error("Could not read existing file for %s before update: %s", safe_model_name, e)
-        else:
-            model_map = current_map.copy()
+        model_map = current_map.copy()
 
         model_map[source_name] = {"sbMode": sb_mode}
 
