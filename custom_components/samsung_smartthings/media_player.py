@@ -356,13 +356,8 @@ class SamsungSmartThingsMediaPlayer(SamsungSmartThingsEntity, MediaPlayerEntity)
             try:
                 os.makedirs(self._source_maps_dir)
             except Exception as e:
-                _LOGGER.error("Could not create source maps directory. Error: %s\nFallback to default", e)
-                return {
-                    "HDMI1": {"sbMode": 3},
-                    "HDMI2": {"sbMode": 20},
-                    "digital": {"sbMode": 10},
-                    "wifi": {"sbMode": 25}
-                }
+                _LOGGER.error("Could not create source maps directory. Error: %s", e)
+
         model_file_path = os.path.join(self._source_maps_dir, f"{safe_model_name}_source_map.json")
         default_file_path = os.path.join(self._source_maps_dir, "default_source_map.json")
 
